@@ -19,7 +19,17 @@ use crate::util::terminator::Terminator;
 
 /// Algorithm 12 from https://doi.org/10.48550/arXiv.2509.13329
 pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listener: &mut impl SolutionListener,  term: &impl Terminator, config: &ExplorationConfig) -> Vec<SPSolution> {
-    let mut current_width = sep.prob.strip_width();
+    //let mut current_width = sep.prob.strip_width();
+    
+    // [!] NEW LOGIC:
+    // 1. Get the large height from your input (e.g., 5000.0)
+    let start_size = sep.prob.instance.base_strip.fixed_height;
+    
+    // 2. Force the strip width to match this height immediately
+    //    This creates a 5000x5000 square (because of Step 1)
+    sep.change_strip_width(start_size, None);
+    
+    let mut current_width = start_size;
     let mut best_width = current_width;
 
     let mut feasible_solutions = vec![sep.prob.save()];
@@ -44,6 +54,14 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
             let next_width = current_width * (1.0 - config.shrink_step);
             info!("[EXPL] shrinking strip by {}%: {:.3} -> {:.3}", config.shrink_step * 100.0, current_width, next_width);
             sep.change_strip_width(next_width, None);
+            
+            // === CHANGE START ===
+            // Force the fixed height to match the new width (Square constraint)
+            sep.prob.instance.base_strip.fixed_height = next_width;
+	    // === CHANGE END ===
+	    // Apply the shrink to the variable dimension
+	    sep.change_strip_width(next_width, None);
+
             current_width = next_width;
             solution_pool.clear();
         } else {

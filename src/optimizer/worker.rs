@@ -50,11 +50,31 @@ impl SeparatorWorker {
                 let item = self.instance.item(item_id);
 
                 //create an evaluator to evaluate the samples during the search
-                let evaluator = SeparationEvaluator::new(&self.prob.layout, item, pk, &self.ct);
+                //let evaluator = SeparationEvaluator::new(&self.prob.layout, item, pk, &self.ct);
 
                 //search for a better position for the item
-                let (best_sample, n_evals) =
-                    search::search_placement(&self.prob.layout, item, Some(pk), evaluator, self.sample_config, &mut self.rng);
+                //let (best_sample, n_evals) =
+                //    search::search_placement(&self.prob.layout, item, Some(pk), evaluator, self.sample_config, &mut self.rng);
+                    
+                // In move_items loop...
+
+		// [CHANGE] Define the factory closure
+		let evaluator_factory = || SeparationEvaluator::new(
+		    &self.prob.layout, 
+		    item, 
+		    pk, // Use current PItemKey
+		    &self.ct
+		);
+
+		// Pass the factory
+		let (best_sample, n_evals) = search::search_placement(
+		    &self.prob.layout, 
+		    item, 
+		    Some(pk), 
+		    evaluator_factory, // Pass closure here
+		    self.sample_config, 
+		    &mut self.rng
+		);
 
                 let (new_dt, _eval) = best_sample.expect("search_placement should always return a sample");
 

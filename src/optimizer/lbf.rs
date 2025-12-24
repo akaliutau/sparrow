@@ -78,17 +78,20 @@ impl LBFBuilder {
     }
 
     fn find_placement(&mut self, item_id: usize) -> Option<SPPlacement> {
-        let layout = &self.prob.layout;
-        let item = self.instance.item(item_id);
-        let evaluator = LBFEvaluator::new(layout, item);
+	let layout = &self.prob.layout;
+	let item = self.instance.item(item_id);
+	    
+	// [CHANGE] Create a factory closure instead of the instance directly
+	let evaluator_factory = || LBFEvaluator::new(layout, item);
 
-        let (best_sample, _) = search_placement(layout, item, None, evaluator, self.sample_config, &mut self.rng);
+	// Pass the factory to search_placement
+	let (best_sample, _) = search_placement(layout, item, None, evaluator_factory, self.sample_config, &mut self.rng);
 
-        match best_sample {
-            Some((d_transf, SampleEval::Clear { .. })) => {
-                Some(SPPlacement { item_id, d_transf })
-            }
-            _ => None
-        }
+	match best_sample {
+	   Some((d_transf, SampleEval::Clear { .. })) => {
+	      Some(SPPlacement { item_id, d_transf })
+	   }
+	   _ => None
+	}
     }
 }

@@ -40,31 +40,46 @@ impl UniformBBoxSampler {
 
         let mut shape_buffer = item.shape_cd.as_ref().clone();
 
-        let sample_x_range = sample_bbox.x_min..sample_bbox.x_max;
-        let sample_y_range = sample_bbox.y_min..sample_bbox.y_max;
+        //let sample_x_range = sample_bbox.x_min..sample_bbox.x_max;
+        //let sample_y_range = sample_bbox.y_min..sample_bbox.y_max;
+        
+        // [CHANGE] Determine the effective sampling area
+        // 1. Start with the algorithm's requested sample area (e.g. focussed search)
+        let mut valid_x_range = sample_bbox.x_min..sample_bbox.x_max;
+        let mut valid_y_range = sample_bbox.y_min..sample_bbox.y_max;
+
+        // 2. Intersect with Item's Allowed Area (if specified)
+        if let Some(area) = item.allowed_area {
+            valid_x_range = intersect_range(&valid_x_range, &(area.x_min..area.x_max));
+            valid_y_range = intersect_range(&valid_y_range, &(area.y_min..area.y_max));
+        }
+        
+        // If the allowed area is completely outside the sample region, return None
+        if valid_x_range.is_empty() || valid_y_range.is_empty() {
+            return None;
+        }
 
         // for each possible rotation, calculate the sample ranges (x and y)
         // where the item resides fully inside the container and is within the sample bounding box
-        let rot_entries = rotations.iter()
+  	let rot_entries = rotations.iter()
             .filter_map(|&r| {
                 let r_shape_bbox = shape_buffer.transform_from(item.shape_cd.as_ref(), &Transformation::from_rotation(r)).bbox;
 
-                //narrow the container range to account for the rotated shape
+                // 3. Narrow by Container Bounds (Geometric Validity)
+                // The item's bounding box must fit inside the container
                 let cont_x_range = (container_bbox.x_min - r_shape_bbox.x_min)..(container_bbox.x_max - r_shape_bbox.x_max);
                 let cont_y_range = (container_bbox.y_min - r_shape_bbox.y_min)..(container_bbox.y_max - r_shape_bbox.y_max);
 
-                //intersect with the sample bbox
-                let x_range = intersect_range(&cont_x_range, &sample_x_range);
-                let y_range = intersect_range(&cont_y_range, &sample_y_range);
+                // 4. Final Intersection
+                let x_range = intersect_range(&cont_x_range, &valid_x_range);
+                let y_range = intersect_range(&cont_y_range, &valid_y_range);
 
-                //make sure the ranges are not empty
                 if x_range.is_empty() || y_range.is_empty() {
                     None
                 } else {
                     Some(RotEntry { r, x_range, y_range })
                 }
             }).collect_vec();
-
         match rot_entries.is_empty() {
             true => None,
             false => Some(Self { rot_entries }),

@@ -17,11 +17,15 @@ use crate::sample::uniform_sampler::convert_sample_to_closest_feasible;
 use crate::util::listener::{ReportType, SolutionListener};
 use crate::util::terminator::Terminator;
 
+// === CHANGE START ===
+// Flag to toggle the adaptive square resizing logic
+const ENABLE_ADAPTIVE_SQUARE_RECOVERY: bool = true;
+// === CHANGE END ===
+
 /// Algorithm 12 from https://doi.org/10.48550/arXiv.2509.13329
 pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listener: &mut impl SolutionListener,  term: &impl Terminator, config: &ExplorationConfig) -> Vec<SPSolution> {
     //let mut current_width = sep.prob.strip_width();
     
-    // [!] NEW LOGIC:
     // 1. Get the large height from your input (e.g., 5000.0)
     let start_size = sep.prob.instance.base_strip.fixed_height;
     
@@ -55,10 +59,8 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
             info!("[EXPL] shrinking strip by {}%: {:.3} -> {:.3}", config.shrink_step * 100.0, current_width, next_width);
             sep.change_strip_width(next_width, None);
             
-            // === CHANGE START ===
             // Force the fixed height to match the new width (Square constraint)
             sep.prob.instance.base_strip.fixed_height = next_width;
-	    // === CHANGE END ===
 	    // Apply the shrink to the variable dimension
 	    sep.change_strip_width(next_width, None);
 
@@ -74,8 +76,30 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
             }
 
             if solution_pool.len() >= config.max_conseq_failed_attempts.unwrap_or(usize::MAX) {
-                info!("[EXPL] max consecutive failed attempts ({}), terminating", solution_pool.len());
-                break;
+	    	// === CHANGE START ===
+                // Logic to recover from over-shrinking by increasing square size slightly
+                if ENABLE_ADAPTIVE_SQUARE_RECOVERY {
+                    // Back off by half the shrink step (e.g., if we shrank by 10%, grow by 5%)
+                    let backoff_ratio = config.shrink_step * 0.5;
+                    let next_width = current_width * (1.0 + backoff_ratio);
+                    
+                    info!("[EXPL] max consecutive failed attempts ({}) reached. ADAPTIVE: Backing off square size {:.3} -> {:.3}", solution_pool.len(), current_width, next_width);
+
+                    // Update square dimensions
+                    sep.prob.instance.base_strip.fixed_height = next_width;
+                    sep.change_strip_width(next_width, None);
+                    current_width = next_width;
+
+                    // Reset the pool to restart attempts at this new, slightly easier size
+                    solution_pool.clear();
+                    
+                    // Skip the disruption logic below and immediately try to separate at the new size
+                    continue; 
+                } else {
+                    info!("[EXPL] max consecutive failed attempts ({}), terminating", solution_pool.len());
+                    break;
+                }
+                // === CHANGE END ===            
             }
 
             //restore to a random solution from the tabu list, better solutions have more chance to be selected

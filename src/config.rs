@@ -55,49 +55,49 @@ pub enum ShrinkDecayStrategy {
 pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
     rng_seed: None,
     expl_cfg: ExplorationConfig {
-        shrink_step: 0.001,
+        shrink_step: 0.002,
         time_limit: Duration::from_secs(9 * 60),
-        max_conseq_failed_attempts: None,
-        solution_pool_distribution_stddev: 0.25,
+        max_conseq_failed_attempts: Some(10),
+        solution_pool_distribution_stddev: 0.05,
         separator_config: SeparatorConfig {
-            iter_no_imprv_limit: 200,
-            strike_limit: 3,
+            iter_no_imprv_limit: 300,
+            strike_limit: 6,
             log_level: log::Level::Info,
-            n_workers: 3,
+            n_workers: 6,
             sample_config: SampleConfig {
-                n_container_samples: 50,
-                n_focussed_samples: 25,
-                n_coord_descents: 3,
+                n_container_samples: 300,
+                n_focussed_samples: 5,
+                n_coord_descents: 4,
             },
         },
-        large_item_ch_area_cutoff_percentile: 0.75
+        large_item_ch_area_cutoff_percentile: 0.90
     },
     cmpr_cfg: CompressionConfig {
-        shrink_range: (0.0005, 0.00001),
+        shrink_range: (0.0001, 0.00001),
         time_limit: Duration::from_secs(60),
         shrink_decay: ShrinkDecayStrategy::TimeBased,
         separator_config: SeparatorConfig {
             iter_no_imprv_limit: 100,
             strike_limit: 5,
             log_level: log::Level::Debug,
-            n_workers: 3,
+            n_workers: 4,
             sample_config: SampleConfig {
-                n_container_samples: 50,
-                n_focussed_samples: 25,
-                n_coord_descents: 3,
+                n_container_samples: 500,
+                n_focussed_samples: 15,
+                n_coord_descents: 8,
             },
         },
     },
     cde_config: CDEConfig {
-        quadtree_depth: 4,
+        quadtree_depth: 5,
         cd_threshold: 16,
         item_surrogate_config: SPSurrogateConfig {
-            n_pole_limits: [(64, 0.0), (16, 0.8), (8, 0.9)],
+            n_pole_limits: [(32, 0.0), (16, 1.5), (8, 22.5)],
             n_ff_poles: 1,
-            n_ff_piers: 0,
+            n_ff_piers: 1,
         },
     },
-    poly_simpl_tolerance: Some(0.001),
+    poly_simpl_tolerance: Some(0.0001),
     narrow_concavity_cutoff_ratio: Some(0.01),
     min_item_separation: None,
 };

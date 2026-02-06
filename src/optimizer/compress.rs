@@ -54,17 +54,28 @@ pub fn compression_phase(
 }
 
 
-fn attempt_to_compress(sep: &mut Separator, init_sol: &SPSolution, r_shrink: f32, term: &impl Terminator, sol_listener: &mut impl SolutionListener) -> Option<SPSolution> {
-    // Restore to the initial solution and width
-    sep.change_strip_width(init_sol.strip_width(), None);
-    sep.rollback(init_sol, None);
+fn attempt_to_compress(sep: &mut Separator, init: &SPSolution, r_shrink: f32, term: &impl Terminator, sol_listener: &mut impl SolutionListener) -> Option<SPSolution> {
+    //restore to the initial solution and width
+    
+    // === CHANGE START ===
+    // Ensure we restore the square shape of the solution we are rolling back to
+    sep.prob.instance.base_strip.fixed_height = init.strip_width();
+    // === CHANGE END ===
+    
+    sep.change_strip_width(init.strip_width(), None);
+    sep.rollback(init, None);
 
     // Shrink the container by the provided amount at a random position
     let new_width = init_sol.strip_width() * (1.0 - r_shrink);
     let split_pos = sep.rng.random_range(0.0..sep.prob.strip_width());
+    
+    // === CHANGE START ===
+    // Force the fixed height to match the new target width
+    sep.prob.instance.base_strip.fixed_height = new_width;
+    // === CHANGE END ===
+    
     sep.change_strip_width(new_width, Some(split_pos));
-
-    // Try to separate layout, if all collisions are eliminated, return the solution
+    //try to separate layout, if all collisions are eliminated, return the solution
     let (compacted_sol, ot) = sep.separate(term, sol_listener);
     match ot.get_total_loss() == 0.0 {
         true => Some(compacted_sol),

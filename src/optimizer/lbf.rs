@@ -3,6 +3,8 @@ use crate::eval::sample_eval::SampleEval;
 use crate::sample::search::{search_placement, SampleConfig};
 use itertools::Itertools;
 use log::debug;
+use log::warn;
+use log::info;
 use ordered_float::OrderedFloat;
 use std::cmp::Reverse;
 use std::iter;
@@ -37,6 +39,9 @@ impl LBFBuilder {
 
     pub fn construct(mut self) -> Self {
         let start = Instant::now();
+        // [CHANGE] Enforce fixed items (Unmelted Crystal) before greedy construction
+        self.enforce_fixed_items();
+        
         let n_items = self.instance.items.len();
         let sorted_item_indices = (0..n_items)
             .sorted_by_cached_key(|id| {
@@ -51,14 +56,14 @@ impl LBFBuilder {
             })
             .collect_vec();
 
-        debug!("[CONSTR] placing items in order: {:?}",sorted_item_indices);
+        info!("[CONSTR] placing items in order: {:?}",sorted_item_indices);
 
         for item_id in sorted_item_indices {
             self.place_item(item_id);
         }
 
         self.prob.fit_strip();
-        debug!("[CONSTR] placed all items in width: {:.3} (in {:?})",self.prob.strip_width(), start.elapsed());
+        info!("[CONSTR] placed all items in width: {:.3} (in {:?})",self.prob.strip_width(), start.elapsed());
         self
     }
 
@@ -66,10 +71,10 @@ impl LBFBuilder {
         match self.find_placement(item_id) {
             Some(p_opt) => {
                 self.prob.place_item(p_opt);
-                debug!("[CONSTR] placing item {}/{} with id {} at [{}]",self.prob.layout.placed_items.len(),self.instance.total_item_qty(),p_opt.item_id,p_opt.d_transf);
+                info!("[CONSTR] placing item {}/{} with id {} at [{}]",self.prob.layout.placed_items.len(),self.instance.total_item_qty(),p_opt.item_id,p_opt.d_transf);
             }
             None => {
-                debug!("[CONSTR] failed to place item with id {}, expanding strip width",item_id);
+                info!("[CONSTR] failed to place item with id {}, expanding strip width",item_id);
                 self.prob.change_strip_width(self.prob.strip_width() * 1.2);
                 assert!(assertions::strip_width_is_in_check(&self.prob), "strip-width is running away (>{:.3}), item {item_id} does not seem to fit into the strip", self.prob.strip_width());          
                 self.place_item(item_id);
@@ -78,17 +83,59 @@ impl LBFBuilder {
     }
 
     fn find_placement(&mut self, item_id: usize) -> Option<SPPlacement> {
-        let layout = &self.prob.layout;
-        let item = self.instance.item(item_id);
-        let evaluator = LBFEvaluator::new(layout, item);
+	let layout = &self.prob.layout;
+	let item = self.instance.item(item_id);
+	    
+	// [CHANGE] Create a factory closure instead of the instance directly
+	let evaluator_factory = || LBFEvaluator::new(layout, item);
 
-        let (best_sample, _) = search_placement(layout, item, None, evaluator, self.sample_config, &mut self.rng);
+	// Pass the factory to search_placement
+	let (best_sample, _) = search_placement(layout, item, None, evaluator_factory, self.sample_config, &mut self.rng);
 
-        match best_sample {
-            Some((d_transf, SampleEval::Clear { .. })) => {
-                Some(SPPlacement { item_id, d_transf })
+	match best_sample {
+	   Some((d_transf, SampleEval::Clear { .. })) => {
+	      Some(SPPlacement { item_id, d_transf })
+	   }
+	   _ => None
+	}
+    }
+    
+    // [CHANGE] Logic moved from explore.rs
+    fn enforce_fixed_items(&mut self) {
+        // Collect items to fix first to avoid borrow conflicts
+        let items_to_fix = self.instance.items()
+            .filter_map(|item| item.fixed_placement.map(|fp| (item.id, fp)))
+            .collect::<Vec<_>>();
+
+        let mut fixed_count = 0;
+
+        for (item_id, d_transf) in items_to_fix {
+            // Only place if there is demand (safeguard)
+            if self.prob.item_demand_qtys[item_id] > 0 {
+                let placement = SPPlacement { item_id, d_transf };
+                
+                // Place the item (this handles demand decrement and CDE registration)
+                // Note: Standard placement is unlocked (false).
+                self.prob.place_item(placement);
+                info!("[CONSTR] placing item {}/{} with id {} at [{}]",self.prob.layout.placed_items.len(),self.instance.total_item_qty(),item_id,d_transf);
+
+                // Immediately find and lock the item we just placed
+                // We assume it's one of the items with this ID that isn't locked yet.
+                if let Some((_, pi)) = self.prob.layout.placed_items.iter_mut()
+                    .find(|(_, pi)| pi.item_id == item_id && !pi.is_locked) 
+                {
+                    pi.is_locked = true;
+                    fixed_count += 1;
+                } else {
+                     warn!("[CONSTR] Failed to lock fixed item {}", item_id);
+                }
+            } else {
+                 warn!("[CONSTR] Item {} has fixed placement but no demand left.", item_id);
             }
-            _ => None
+        }
+
+        if fixed_count > 0 {
+            info!("[CONSTR] Enforced {} fixed items (unmelted crystal)", fixed_count);
         }
     }
 }

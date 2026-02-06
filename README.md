@@ -1,7 +1,7 @@
-# sparrow^2
+# sparrow<sup>2</sup>
 
-NOTE: this is an experimental fork of original project, which changes in logic. This project is to design algorithm to optimize packing into _square_ bin. 
-For strip strip packing problem, see  [sparrow](https://github.com/JeroenGar/sparrow).
+NOTE: this is an experimental fork of original project, with heavy changes in logic. This project is to design algorithm to optimize packing into _square_ bin. 
+For strip strip packing problem, see [sparrow](https://github.com/JeroenGar/sparrow).
  
 [![DOI](https://zenodo.org/badge/DOI/10.48550/arXiv.2509.13329.svg)](https://doi.org/10.48550/arXiv.2509.13329)
 [![CI](https://github.com/JeroenGar/sparrow/actions/workflows/rust_ci.yml/badge.svg?branch=main)](https://github.com/JeroenGar/sparrow/actions/workflows/rust_ci.yml) 

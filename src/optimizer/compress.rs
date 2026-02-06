@@ -66,7 +66,7 @@ fn attempt_to_compress(sep: &mut Separator, init: &SPSolution, r_shrink: f32, te
     sep.rollback(init, None);
 
     // Shrink the container by the provided amount at a random position
-    let new_width = init_sol.strip_width() * (1.0 - r_shrink);
+    let new_width = init.strip_width() * (1.0 - r_shrink);
     let split_pos = sep.rng.random_range(0.0..sep.prob.strip_width());
     
     // === CHANGE START ===

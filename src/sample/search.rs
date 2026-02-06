@@ -45,7 +45,7 @@ where
         }
         None => None,
     };
-    let container_sampler = UniformBBoxSampler::new(l.container.outer_cd.bbox, item, l.container.outer_cd.bbox);
+    let _container_sampler = UniformBBoxSampler::new(l.container.outer_cd.bbox, item, l.container.outer_cd.bbox);
 
     //Perform the focussed sampling
     if let Some(focussed_sampler) = focussed_sampler {

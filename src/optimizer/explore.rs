@@ -81,7 +81,7 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
                 Ok(idx) | Err(idx) => infeas_sol_pool.insert(idx, (local_best.0.clone(), total_loss)),
             }
 
-            if solution_pool.len() >= config.max_conseq_failed_attempts.unwrap_or(usize::MAX) {
+            if infeas_sol_pool.len() >= config.max_conseq_failed_attempts.unwrap_or(usize::MAX) {
 	    	// === CHANGE START ===
                 // Logic to recover from over-shrinking by increasing square size slightly
                 if ENABLE_ADAPTIVE_SQUARE_RECOVERY {
@@ -89,7 +89,7 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
                     let backoff_ratio = config.shrink_step * 0.5;
                     let next_width = current_width * (1.0 + backoff_ratio);
                     
-                    info!("[EXPL] max consecutive failed attempts ({}) reached. ADAPTIVE: Backing off square size {:.3} -> {:.3}", solution_pool.len(), current_width, next_width);
+                    info!("[EXPL] max consecutive failed attempts ({}) reached. ADAPTIVE: Backing off square size {:.3} -> {:.3}", infeas_sol_pool.len(), current_width, next_width);
 
                     // Update square dimensions
                     sep.prob.instance.base_strip.fixed_height = next_width;
@@ -97,12 +97,12 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
                     current_width = next_width;
 
                     // Reset the pool to restart attempts at this new, slightly easier size
-                    solution_pool.clear();
+                    infeas_sol_pool.clear();
                     
                     // Skip the disruption logic below and immediately try to separate at the new size
                     continue; 
                 } else {
-                    info!("[EXPL] max consecutive failed attempts ({}), terminating", solution_pool.len());
+                    info!("[EXPL] max consecutive failed attempts ({}), terminating", infeas_sol_pool.len());
                     break;
                 }
                 // === CHANGE END ===            

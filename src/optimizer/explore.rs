@@ -4,6 +4,8 @@ use itertools::Itertools;
 use jagua_rs::collision_detection::hazards::HazardEntity;
 use jagua_rs::entities::{Instance, Layout, PItemKey};
 use jagua_rs::geometry::geo_traits::CollidesWith;
+use jagua_rs::geometry::geo_traits::Transformable;
+use jagua_rs::geometry::DTransformation;
 use jagua_rs::probs::spp::entities::{SPInstance, SPSolution};
 use log::{debug, info, warn};
 use ordered_float::OrderedFloat;
@@ -17,6 +19,8 @@ use crate::sample::uniform_sampler::convert_sample_to_closest_feasible;
 use crate::util::listener::{ReportType, SolutionListener};
 use crate::util::terminator::Terminator;
 
+// Notes on is_locked flag: The changes in explore.rs protect the global disruption phase, but the local search (separation) must also respect the lock.
+
 // === CHANGE START ===
 // Flag to toggle the adaptive square resizing logic
 const ENABLE_ADAPTIVE_SQUARE_RECOVERY: bool = true;
@@ -25,7 +29,7 @@ const ENABLE_ADAPTIVE_SQUARE_RECOVERY: bool = true;
 /// Algorithm 12 from https://doi.org/10.48550/arXiv.2509.13329
 pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listener: &mut impl SolutionListener,  term: &impl Terminator, config: &ExplorationConfig) -> Vec<SPSolution> {
     //let mut current_width = sep.prob.strip_width();
-    
+   
     // 1. Get the large height from your input (e.g., 5000.0)
     let start_size = sep.prob.instance.base_strip.fixed_height;
     
@@ -125,7 +129,15 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, sol_listene
     feasible_solutions
 }
 
+
 fn disrupt_solution(sep: &mut Separator, config: &ExplorationConfig) {
+
+    let movable_items_count = sep.prob.layout.placed_items.iter().filter(|(_, pi)| !pi.is_locked).count();
+    
+    if movable_items_count < 2 {
+        warn!("[DSRP] cannot disrupt solution with less than 2 movable items");
+        return;
+    }
     if sep.prob.layout.placed_items.len() < 2 {
         warn!("[DSRP] cannot disrupt solution with less than 2 items");
         return;
@@ -176,6 +188,7 @@ fn disrupt_solution(sep: &mut Separator, config: &ExplorationConfig) {
     // Step 2: Select two 'large' items and 'swap' them.
 
     let large_items = sep.prob.layout.placed_items.iter()
+        .filter(|(_, pi)| !pi.is_locked) // <--- CRITICAL CHANGE
         .filter(|(_, pi)| pi.shape.surrogate().convex_hull_area >= ch_area_cutoff);
 
     //Choose a first item with a large enough convex hull
@@ -218,10 +231,18 @@ fn disrupt_solution(sep: &mut Separator, config: &ExplorationConfig) {
     //         surrounded the smaller one will be contained by the huge one.
     {
         // transformation to convert the contained items' position (relative to the old and new positions of the swapped items)
-        let converting_transformation = dt1_new.compose().inverse()
+let converting_transformation = dt1_new.compose().inverse()
             .transform(&dt1_old.compose());
 
-        for c1_pk in practically_contained_items(&sep.prob.layout, pk1).into_iter().filter(|c1_pk| *c1_pk != pk2) {
+        // [FIX] Collect keys into a Vec to release the borrow on 'sep'
+        let items_to_move: Vec<PItemKey> = practically_contained_items(&sep.prob.layout, pk1)
+            .into_iter()
+            .filter(|c1_pk| *c1_pk != pk2)
+            // Use the lock check here
+            .filter(|c1_pk| !sep.prob.layout.placed_items[*c1_pk].is_locked)
+            .collect();
+
+        for c1_pk in items_to_move {
             let c1_pi = &sep.prob.layout.placed_items[c1_pk];
 
             let new_dt = c1_pi.d_transf
@@ -229,25 +250,31 @@ fn disrupt_solution(sep: &mut Separator, config: &ExplorationConfig) {
                 .transform(&converting_transformation)
                 .decompose();
 
-            //Ensure the sure the new position is feasible
             let new_feasible_dt = convert_sample_to_closest_feasible(new_dt, sep.prob.instance.item(c1_pi.item_id));
             sep.move_item(c1_pk, new_feasible_dt);
         }
     }
 
-    // Do the same for the second item, but using the second transformation
+    // Do the same for the second item
     {
         let converting_transformation = dt2_new.compose().inverse()
             .transform(&dt2_old.compose());
 
-        for c2_pk in practically_contained_items(&sep.prob.layout, pk2).into_iter().filter(|c2_pk| *c2_pk != pk1) {
+        // [FIX] Collect keys into a Vec here too
+        let items_to_move: Vec<PItemKey> = practically_contained_items(&sep.prob.layout, pk2)
+            .into_iter()
+            .filter(|c2_pk| *c2_pk != pk1)
+            .filter(|c2_pk| !sep.prob.layout.placed_items[*c2_pk].is_locked)
+            .collect();
+
+        for c2_pk in items_to_move {
             let c2_pi = &sep.prob.layout.placed_items[c2_pk];
+            
             let new_dt = c2_pi.d_transf
                 .compose()
                 .transform(&converting_transformation)
                 .decompose();
 
-            //make sure the new position is feasible
             let new_feasible_dt = convert_sample_to_closest_feasible(new_dt, sep.prob.instance.item(c2_pi.item_id));
             sep.move_item(c2_pk, new_feasible_dt);
         }

@@ -11,6 +11,7 @@ use std::fs;
 use std::path::Path;
 use std::time::Duration;
 use jagua_rs::io::import::Importer;
+use jagua_rs::entities::Instance;
 use sparrow::EPOCH;
 
 use anyhow::{bail, Result};
@@ -78,9 +79,34 @@ fn main() -> Result<()>{
     let ext_instance = io::read_spp_instance_json(Path::new(&input_file_path))?;
 
     let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
-    let instance = jagua_rs::probs::spp::io::import(&importer, &ext_instance)?;
+    let instance = jagua_rs::probs::spp::io::import_instance(&importer, &ext_instance)?;
 
     info!("[MAIN] loaded instance {} with #{} items", ext_instance.name, instance.total_item_qty());
+    
+    let mut fixed_count = 0;
+    let mut free_count = 0;
+    let mut fixed_ids = Vec::new();
+
+    // Iterate safely over references provided by the Instance trait
+    for item in instance.items() {
+        if item.fixed_placement.is_some() {
+            fixed_count += 1;
+            fixed_ids.push(item.id);
+        } else {
+            free_count += 1;
+        }
+    }
+
+    info!("[MAIN] Instance Statistics:");
+    info!("[MAIN]   - Total Items: {}", instance.total_item_qty());
+    info!("[MAIN]   - Fixed Items: {} (IDs: {:?})", fixed_count, fixed_ids);
+    info!("[MAIN]   - ID to optimise:  {}", free_count);
+    
+    if fixed_count > 0 {
+        info!("[MAIN]   -> Verified: {} items will be treated as unmelted crystal.", fixed_count);
+    } else {
+        warn!("[MAIN]   -> No fixed items detected. Solving from scratch.");
+    }    
     
     let mut svg_exporter = {
         let final_svg_path = Some(format!("{OUTPUT_DIR}/final_{}.svg", ext_instance.name));

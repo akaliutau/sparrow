@@ -67,7 +67,7 @@ fn main() -> Result<()> {
     );
 
     let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
-    let instance = jagua_rs::probs::spp::io::import(&importer, &ext_instance)?;
+    let instance = jagua_rs::probs::spp::io::import_instance(&importer, &ext_instance)?;
 
     let mut final_solutions = vec![];
 

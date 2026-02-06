@@ -55,7 +55,7 @@ pub enum ShrinkDecayStrategy {
 pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
     rng_seed: None,
     expl_cfg: ExplorationConfig {
-        shrink_step: 0.002,
+        shrink_step: 0.0015,
         time_limit: Duration::from_secs(9 * 60),
         max_conseq_failed_attempts: Some(10),
         solution_pool_distribution_stddev: 0.05,
@@ -67,10 +67,10 @@ pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
             sample_config: SampleConfig {
                 n_container_samples: 300,
                 n_focussed_samples: 5,
-                n_coord_descents: 4,
+                n_coord_descents: 5,
             },
         },
-        large_item_ch_area_cutoff_percentile: 0.90
+        large_item_ch_area_cutoff_percentile: 0.70
     },
     cmpr_cfg: CompressionConfig {
         shrink_range: (0.0001, 0.00001),
@@ -89,10 +89,10 @@ pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
         },
     },
     cde_config: CDEConfig {
-        quadtree_depth: 5,
+        quadtree_depth: 4,
         cd_threshold: 16,
         item_surrogate_config: SPSurrogateConfig {
-            n_pole_limits: [(32, 0.0), (16, 1.5), (8, 22.5)],
+            n_pole_limits: [(16, 0.0), (8, 2.5), (4, 62.5)],
             n_ff_poles: 1,
             n_ff_piers: 1,
         },
